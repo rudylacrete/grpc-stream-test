@@ -4,14 +4,30 @@ const path = require('path');
 const grpc = require('grpc');
 const PROTO_PATH = path.join(__dirname, '/article.proto');
 const Client = grpc.load(PROTO_PATH).article;
+const fs = require('fs');
+
+const getAuthCred = function() {
+  // return grpc.credentials.createInsecure();
+  return grpc.credentials.createFromMetadataGenerator(function(auth_context, callback) {
+    var metadata = new grpc.Metadata();
+    metadata.add('authorization', 'ok');
+    callback(null, metadata);
+  });
+}
+
 
 const getClient = function (address) {
-  return new Client(address, grpc.credentials.createInsecure());
+  let creds = grpc.credentials.combineChannelCredentials(
+    grpc.credentials.createSsl(fs.readFileSync('certs/cert.pem')),
+    getAuthCred()
+  );
+  // return new Client(address, grpc.credentials.createInsecure());
+  return new Client(address, creds);
 };
 
 
 function main() {
-  const articleClient = getClient('127.0.0.1:50051');
+  const articleClient = getClient('test.fr:50051');
 
   // insert
   articleClient.insert({
@@ -42,7 +58,7 @@ function main() {
   // update
   articleClient.update({
     id: '1',
-    content: '哈哈哈哈',
+    content: 'This is a test',
     title: 'article title',
     isPublic: true,
     url: 'article-title',
@@ -65,6 +81,10 @@ function main() {
     return console.log(res.articles);
   })
 
+  let stream = articleClient.testStreaming({});
+  stream.on('data', (data) => {
+    console.log("Get data => ", data);
+  });
 
 }
 

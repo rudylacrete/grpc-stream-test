@@ -39,6 +39,8 @@ service article {
   rpc update (ArticleRequest) returns (ArticleRequest) {}
 
   rpc remove (ArticleIdOnly) returns (ArticleEmpty) {}
+
+  rpc testStreaming (ArticleEmpty) returns (stream ArticleRequest);
 }
 
 message ArticleEmpty {}

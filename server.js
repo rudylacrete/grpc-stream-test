@@ -3,9 +3,11 @@ const path = require('path');
 const PROTO_PATH = path.join(__dirname, '/article.proto');
 const article = grpc.load(PROTO_PATH).article;
 let db = require('./db.json');
+const fs = require('fs');
 
 class Article {
   getList (call, callback) {
+    console.log('call metadata =>', call.metadata);
     return callback(null, {
       articles: db
     })
@@ -49,18 +51,37 @@ class Article {
     }
     return callback('Can not find article.');
   }
+  testStreaming(call) {
+    if(call.metadata.get('authorization') != 'ok')
+      call.end();
+    let interval = setInterval(() => {
+      console.log('writing data ...');
+      call.write(db[0]);
+    }, 2000);
+    call.on('end', () => {
+      console.log('Stream ended by client ....');
+      clearInterval(interval);
+    });
+
+    call.on('error', (error) => {
+      clearInterval(interval);
+      call.end();
+      console.log('error//// ', error);
+      console.log(error.code);
+    });
+  }
 }
 
-const getServer = function (service, serviceCall, lintener){
+const getServer = function (service, serviceCall, lintener) {
   const server = new grpc.Server();
   server.addService(service, serviceCall);
-  server.bind(lintener, grpc.ServerCredentials.createInsecure());
+  // server.bind(lintener, grpc.ServerCredentials.createInsecure());
+  server.bind(lintener, grpc.ServerCredentials.createSsl(null, [{
+    cert_chain: fs.readFileSync('certs/cert.pem'),
+    private_key: fs.readFileSync('certs/key.pem')
+  }], false));
   return server;
 }
 
-function main() {
-  const articleServer = getServer(article.service, new Article, '0.0.0.0:50051');
-  articleServer.start();
-}
-
-main();
+const articleServer = getServer(article.service, new Article(), '0.0.0.0:50051');
+articleServer.start();
